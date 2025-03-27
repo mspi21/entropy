@@ -1,6 +1,7 @@
 #[derive(Debug)]
 enum Error {
-    FileOpen,
+    FileNotOpenable,
+    PathNotFound,
     NotARegularFile,
     UnexpectedIO,
 }
@@ -34,7 +35,21 @@ fn process_filelist(filepaths: Vec<String>) {
     for path in path_iter {
         let entropy = match shannon_entropy_of_file(path) {
             Ok(entropy) => entropy,
-            Err(Error::FileOpen) => {
+            Err(Error::PathNotFound) => {
+                eprintln!(
+                    "The specified path '{}' does not exist, skipping.",
+                    path.to_str().unwrap()
+                );
+                continue;
+            }
+            Err(Error::NotARegularFile) => {
+                eprintln!(
+                    "The specified file '{}' is not a regular file, skipping.",
+                    path.to_str().unwrap()
+                );
+                continue;
+            }
+            Err(Error::FileNotOpenable) => {
                 eprintln!(
                     "Could not open file '{}' for reading, skipping.",
                     path.to_str().unwrap()
@@ -44,13 +59,6 @@ fn process_filelist(filepaths: Vec<String>) {
             Err(Error::UnexpectedIO) => {
                 eprintln!(
                     "Got unexpected IO error reading from file '{}', skipping.",
-                    path.to_str().unwrap()
-                );
-                continue;
-            }
-            Err(Error::NotARegularFile) => {
-                eprintln!(
-                    "The specified file '{}' is not a regular file, skipping.",
                     path.to_str().unwrap()
                 );
                 continue;
@@ -109,11 +117,15 @@ fn shannon_entropy(stream: &mut impl Read) -> Result<f64, Error> {
 }
 
 fn shannon_entropy_of_file(filepath: &std::path::Path) -> Result<f64, Error> {
+    if !filepath.exists() {
+        return Err(Error::PathNotFound);
+    }
+
     if !filepath.is_file() && filepath != std::path::Path::new("/dev/stdin") {
         return Err(Error::NotARegularFile);
     }
 
-    let mut file = std::fs::File::open(filepath).map_err(|_| Error::FileOpen)?;
+    let mut file = std::fs::File::open(filepath).map_err(|_| Error::FileNotOpenable)?;
     shannon_entropy(&mut file)
 }
 
